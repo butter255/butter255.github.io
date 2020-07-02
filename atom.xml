@@ -6,7 +6,7 @@
   <link href="/atom.xml" rel="self"/>
   
   <link href="https://butter255.github.io/"/>
-  <updated>2020-06-21T10:59:34.240Z</updated>
+  <updated>2020-07-02T10:31:38.760Z</updated>
   <id>https://butter255.github.io/</id>
   
   <author>
@@ -15,6 +15,33 @@
   </author>
   
   <generator uri="https://hexo.io/">Hexo</generator>
+  
+  <entry>
+    <title>转｜【sharepoint】解读onedrive每天流量限制</title>
+    <link href="https://butter255.github.io/posts/odjc01/"/>
+    <id>https://butter255.github.io/posts/odjc01/</id>
+    <published>2020-07-01T16:00:00.000Z</published>
+    <updated>2020-07-02T10:31:38.760Z</updated>
+    
+    <content type="html"><![CDATA[<p>原文：Abbey 原作者博客崩了我从快照转的<br><strong>注：</strong>前两天onedrive api请求过多被ban了，也不知道会限制多久。现在换了E5全局管理员，调用次数也许会多一点？总之尽量不要开多线程下载，IDM，aria2什么的统统禁止</p><p><img src="https://cdn.jsdelivr.net/gh/butter255/05tc/20200702181457.png" alt="如图，下文有解释429是请求过多"></p><p>以下为原文：</p><p>PyOne是一款基于onedrive的个人网盘程序。既然是使用onedrive，那么肯定就有流量限制，毕竟微软不是做慈善的，但是微软没有提供具体的流量限制，因此只能靠猜。</p><p>但是微软提供的开发文档提供了一篇<a href="https://docs.microsoft.com/zh-cn/sharepoint/dev/general-development/how-to-avoid-getting-throttled-or-blocked-in-sharepoint-online">《避免在 SharePoint Online 中受限或遭屏蔽》</a>「`」，Abbey在这里对这篇做一个解读。</p><p>本文说是解读，但是可能更多的是做一个注释。</p><p>ps. 备注仅代表Abbey个人看法，不代表微软官方说法，如有出入，请以官方说法为准。</p><h3 id="什么是限制？"><a href="#什么是限制？" class="headerlink" title="什么是限制？"></a>什么是限制？</h3><p>正如前面所说的，微软不是做慈善的，能提供一个免费网盘，还不限速已经是仁至义尽了，如果不限制每天的流量，迟早被大姐姐们玩死。<br><strong>备注：</strong><br>1.“资源使用情况”指的应该是传输的数据量，比如：你<strong>上传</strong>占用的数据量、通过PyOne（any other program）获取的文件直链<strong>下载</strong>占用的数据量等，都会占用这个资源，但是具体量这里没有说；<br>2.“时间轴”也是一个模糊的时间，你不知道这里是：一天、一小时还是一分钟？<br>按照Abbey的理解，这应该是一个<strong>动态的限制调整</strong>，比如：你在5分钟内占用了20G的资源量，那么你可能就被限制了10分钟；然后恢复之后，你又在5分钟内占用了10G资源量，然后你又被限制了15分钟…随着你累加占用的资源量越来越多，微软对你的容忍度（短时间内占用资源量）会越来越低，对你的限制时间也会越来越长！</p><p><strong>在 SharePoint Online 中被限制时会发生什么？</strong><br>1.对于用户直接在浏览器中执行的请求，SharePoint Online 会将您重定向到限制信息页面，请求将失败。<br>2.对于所有其他请求（包括 CSOM 或 REST 调用），SharePoint Online 将返回 HTTP 状态代码 429（“请求过多”）或 503（“服务器太忙”），且请求将失败。<br>正如上面说的，当你占用的资源量超过限制之后，在限制时间内，你将无法进行任何操作，无论是网页还是api！</p><p><strong>应用程序限制</strong><br>除了按用户帐户限制外，还会对每个应用程序实施限制。 SharePoint Online 中的每个应用程序都有自己的可用资源，但针对 同一租户运行的多个应用程序最终会共享同一资源存储桶 ，并且在极少数情况下会导致速率受限。 在这些情况下，SharePoint Online 将尝试通过后台活动确定交互式用户请求的优先级。<br><strong>备注</strong><br>1.想通过创建多个应用程序搭建多个PyOne，然后避免限制，这种做法是不行的！因为是共享资源量的！<br>2.同一个账号下开的子账号也是共享流量的，所以通过创建多个子账号，避免限制，这种做法也是不行的！<br>对于第2点，Abbey并不是太确定，但是感觉是这样的。因为同一个主账号下的所有子账号，sharepoint的子域名是同一个！</p><p>###SharePoint Online 中常见的限制场景<br>导致 SharePoint Online 中出现用户限制最常见的原因是以 太高的频率 执行 太多操作 的客户端对象模型 (CSOM) 或代表性状态传输 (REST) 代码。</p><p>这就是说：不仅占用下载、上传量会受到限制，如果 api操作太频繁也会受到限制！</p><p>###为什么不能告诉我确切的限制？<br>太明显的规则只会让人钻空子！</p><p>###处理限制的最佳做法<br><strong>•</strong>减少每个请求的操作数<br><strong>•</strong>减少调用频率<br><strong>•</strong>修饰User-Agent标识来源<br><strong>•</strong>利用 retry-after 标头</p><p>注意：这些操作只是告诉你当受到限制之后该怎么办，并不能让你避免限制！</p><p><strong>修饰User-Agent标识来源</strong><br>其实这个操作另Abbey挺费解的，因为感觉并没有什么用。官方原文是：“为了确保和保持高可用性，一些流量可能会受到限制。 当系统健康受到威胁时，就会出现限制。一种适用于限制的条件是流量修饰（特指User-Agent。Abbey注），这可直接影响流量的优先级。 良好修饰的流量优先于未正确修饰的流量。”</p><p>这里是说设置好User-Agent，可以令操作优先级更高，那么我只能理解为：像Abbey写PyOne时，上传操作指定了UA，那么当流量有限的情况下，我上传的操作会比用户下载文件的优先级更高，因为下载的操作没有指定UA。</p><p>好吧，不管理解的对不对，总之在操作API的时候，指定好UA就行。</p><p>请务必按照约定设置UA：</p><p>类型 用户代理 说明<br>ISV 应用    ISV|CompanyName|AppName/Version    标识为 ISV，并添加公司名称、应用名称（用竖线符隔开），再添加版本号（用斜线符隔开）<br>企业应用    NONISV|CompanyName|AppName/Version    标识为 NONISV，并添加公司名称、应用名称（用竖线符隔开），再添加版本号（用斜线符隔开）<br>ps. ISV，英文全称Independent Software Vendors，即独立开发者。PyOne使用的UA是：ISV|PyOne|PyOne/2.0。</p><p><strong>利用 retry-after 标头</strong><br>即当操作（上传、更新）受限时，可以参考返回的 retry-after 头部信息，按照指定的时间后再继续操作。</p><p>比如PyOne在上传文件时有个操作就是：使用PyOne上传大文件时，当检测到流量受限了，会自动等待30分钟之后，再继续上传。</p><p>###结论<br>1.onedrive的流量限制应该不是之前猜的每天750G的流量限制，而是会 动态调整限制，具体限制多少，不好说，除非有人专门去进行压测！<br>2.同一个账号，创建多个应用程序，会共享流量限制！<br>3.同一主账号及其子账号，会共享流量限制！<br>4.类似PyOne、oneindex之类的应用，自己用用没问题，小范围共享也没问题，但是一旦扩大，那就会GG！</p>]]></content>
+    
+    <summary type="html">
+    
+      
+      
+        &lt;p&gt;原文：Abbey 原作者博客崩了我从快照转的&lt;br&gt;&lt;strong&gt;注：&lt;/strong&gt;前两天onedrive api请求过多被ban了，也不知道会限制多久。现在换了E5全局管理员，调用次数也许会多一点？总之尽量不要开多线程下载，IDM，aria2什么的统统禁止&lt;/p&gt;
+
+      
+    
+    </summary>
+    
+    
+      <category term="教程" scheme="https://butter255.github.io/categories/%E6%95%99%E7%A8%8B/"/>
+    
+    
+      <category term="教程" scheme="https://butter255.github.io/tags/%E6%95%99%E7%A8%8B/"/>
+    
+  </entry>
   
   <entry>
     <title>ONS游戏资源库正式发布！</title>
